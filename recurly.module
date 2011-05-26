@@ -1,0 +1,7 @@
+<?php
+
+/**
+ * @file
+ * Uses Recurly's PHP client library to interact with their API and integrate it
+ * with Drupal user accounts.
+ */
