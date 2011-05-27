@@ -50,9 +50,24 @@ function recurly_permission() {
       'description' => t('Allows users to configure site-wide Recurly API settings and points of integration.'),
       'restrict access' => TRUE,
     ),
+    'edit subscription plans' => array(
+      'title' => t('Edit subscription plans'),
+      'description' => t('Determines whether or not the user should see links to edit subscription plans at Recurly. Grants of this permission should coordinate with user permissions at Recurly.'),
+      'restrict access' => TRUE,
+    ),
   );
 
   return $permissions;
+}
+
+/**
+ * Implements hook_help().
+ */
+function recurly_help($path, $arg) {
+  switch ($path) {
+    case 'admin/config/services/recurly/subscription-plans':
+      return '<p>' . t('The subscription plans below are defined for the Recurly account configured in your default account settings. Plans should be defined and updated at Recurly and are cached here for informational purposes only. Edit links and purchase links that may appear in the table redirect to Recurly.') . '</p>';
+  }
 }
 
 /**
@@ -131,4 +146,34 @@ function recurly_subscription_plans($reset_cache = FALSE) {
   }
 
   return $plans;
+}
+
+/**
+ * Returns the base Recurly URL for the current account with an optional path
+ * appended to it.
+ */
+function recurly_url($path = '') {
+  // Generate the subdomain to use for the current account.
+  $subdomain = RecurlyClient::$subdomain;
+
+  // Add the sandbox suffix to the subdomain if the account is currently in the
+  // snadbox environment.
+  if (RecurlyClient::$environment == 'sandbox') {
+    $subdomain .= '-test';
+  }
+
+  return 'https://' . $subdomain . '.recurly.com/' . $path;
+}
+
+/**
+ * Returns an edit URL for a subscription plan at the current account.
+ *
+ * @param $plan
+ *   The subscription plan object returned by the Recurly client.
+ *
+ * @return
+ *   The URL for the plan's edit page at Recurly.
+ */
+function recurly_subscription_plan_edit_url($plan) {
+  return recurly_url('company/plans/' . $plan->plan_code);
 }

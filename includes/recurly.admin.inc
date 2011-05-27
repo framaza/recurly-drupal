@@ -58,24 +58,30 @@ function recurly_subscription_plans_overview() {
   $plans = recurly_subscription_plans();
 
   // Format the plan data into a table for display.
-  $header = array(t('Subscription plan'), t('Price'), t('Setup fee'), t('Trial'), t('Created'));
+  $header = array(t('Subscription plan'), t('Price'), t('Setup fee'), t('Trial'), t('Created'), t('Operations'));
   $rows = array();
 
   foreach ($plans as $plan) {
+    $operations = array();
+    $description = '';
+
     // Prepare the description string if one is given for the plan.
     if (!empty($plan->description)) {
-      $description = '<br />' . check_plain($plan->description);
+      $description = '<div class="description">' . check_plain($plan->description) . '</div>';
     }
-    else {
-      $description = '';
+
+    // Add an edit link if available for the current user.
+    if (user_access('edit subscription plans')) {
+      $operations[] = l(t('edit'), recurly_subscription_plan_edit_url($plan));
     }
 
     $rows[] = array(
-      '<strong>' . check_plain($plan->name) . '</strong> ' . check_plain($plan->plan_code) . $description,
+      t('@name <small>(Plan code: @code)</small>', array('@name' => $plan->name, '@code' => $plan->plan_code)) . $description,
       t('@unit_price per @interval_length @interval_unit', array('@unit_price' => number_format($plan->unit_amount_in_cents / 100, 2), '@interval_length' => $plan->plan_interval_length, '@interval_unit' => $plan->plan_interval_unit)),
       t('@setup_fee', array('@setup_fee' => number_format($plan->setup_fee_in_cents / 100, 2))),
       t('@trial_length @trial_unit', array('@trial_length' => $plan->trial_interval_length, '@trial_unit' => $plan->trial_interval_unit)),
       format_date($plan->created_at),
+      implode(' ', $operations),
     );
   }
 
