@@ -127,7 +127,7 @@ function recurly_subscription_plans($reset_cache = FALSE) {
 
   // If data was actually returned, cache it for the current subdomain.
   if (!empty($plans)) {
-    cache_set('recurly-subscription-plans:' . RecurlyClient::$subdomain, $plans);
+    cache_set('recurly-subscription-plans:' . RecurlyClient::$subdomain, $plans, 'cache', CACHE_TEMPORARY);
   }
 
   return $plans;
