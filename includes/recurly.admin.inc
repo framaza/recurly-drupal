@@ -44,3 +44,44 @@ function recurly_settings_form($form, &$form_state) {
 
   return system_settings_form($form);
 }
+
+/**
+ * Displays a list of subscription plans currently defined in your Recurly account.
+ */
+function recurly_subscription_plans_overview() {
+  // Initialize the Recurly client with the site-wide settings.
+  if (!recurly_client_initialize()) {
+    return t('Could not initialize the Recurly client.');
+  }
+
+  // Retrieve the plans for the current account.
+  $plans = recurly_subscription_plans();
+
+  // Format the plan data into a table for display.
+  $header = array(t('Subscription plan'), t('Price'), t('Setup fee'), t('Trial'), t('Created'));
+  $rows = array();
+
+  foreach ($plans as $plan) {
+    // Prepare the description string if one is given for the plan.
+    if (!empty($plan->description)) {
+      $description = '<br />' . check_plain($plan->description);
+    }
+    else {
+      $description = '';
+    }
+
+    $rows[] = array(
+      '<strong>' . check_plain($plan->name) . '</strong> ' . check_plain($plan->plan_code) . $description,
+      t('@unit_price per @interval_length @interval_unit', array('@unit_price' => number_format($plan->unit_amount_in_cents / 100, 2), '@interval_length' => $plan->plan_interval_length, '@interval_unit' => $plan->plan_interval_unit)),
+      t('@setup_fee', array('@setup_fee' => number_format($plan->setup_fee_in_cents / 100, 2))),
+      t('@trial_length @trial_unit', array('@trial_length' => $plan->trial_interval_length, '@trial_unit' => $plan->trial_interval_unit)),
+      format_date($plan->created_at),
+    );
+  }
+
+  if (empty($rows)) {
+    $rows[] = array(array('data' => t('No subscription plans found.'), 'colspan' => 5));
+  }
+
+  return theme('table', array('header' => $header, 'rows' => $rows));
+}
