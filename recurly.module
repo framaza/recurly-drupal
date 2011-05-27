@@ -15,7 +15,7 @@ function recurly_menu() {
 
   $items['admin/config/services/recurly'] = array(
     'title' => 'Recurly',
-    'description' => 'Configure your Recurly API settings and points of integration within Drupal.',
+    'description' => 'Configure your Recurly API settings and points of integration with Drupal.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('recurly_settings_form'),
     'access arguments' => array('administer recurly'),
@@ -38,4 +38,41 @@ function recurly_permission() {
   );
 
   return $permissions;
+}
+
+/**
+ * Returns a Recurly API client for use with authentication settings included.
+ *
+ * @param $username
+ *   The API username to use.
+ * @param $password
+ *   The API password for the given username.
+ * @param $subdomain
+ *   The subdomain configured for your Recurly account.
+ * @param $environment
+ *   The current environment of the given account, either 'sandbox' or 'production'.
+ *
+ * @return
+ *   A Recurly client object or FALSE if it could not be initialized.
+ */
+function recurly_client($username, $password, $subdomain, $environment) {
+  $client = NULL;
+
+  // If we can find a path in the libraries directory to the Recurly PHP client
+  // library...
+  if ($path = libraries_get_path('recurly')) {
+    // Include the library files.
+    require_once $path . '/library/recurly.php';
+
+    // Initialize a new client object.
+    $client = new RecurlyClient;
+    $client->SetAuth($username, $password, $subdomain, $environment);
+  }
+
+  // If we successfully initialized the client, return it now.
+  if (!empty($client)) {
+    return $client;
+  }
+
+  return FALSE;
 }
