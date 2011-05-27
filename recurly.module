@@ -5,3 +5,37 @@
  * Uses Recurly's PHP client library to interact with their API and integrate it
  * with Drupal user accounts.
  */
+
+
+/**
+ * Implements hook_menu().
+ */
+function recurly_menu() {
+  $items = array();
+
+  $items['admin/config/services/recurly'] = array(
+    'title' => 'Recurly',
+    'description' => 'Configure your Recurly API settings and points of integration within Drupal.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('recurly_settings_form'),
+    'access arguments' => array('administer recurly'),
+    'file' => 'includes/recurly.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function recurly_permission() {
+  $permissions = array(
+    'administer recurly' => array(
+      'title' => t('Administer Recurly'),
+      'description' => t('Allows users to configure site-wide Recurly API settings and points of integration.'),
+      'restrict access' => TRUE,
+    ),
+  );
+
+  return $permissions;
+}
