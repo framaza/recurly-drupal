@@ -14,22 +14,29 @@ function recurly_settings_form($form, &$form_state) {
     '#type' => 'fieldset',
     '#title' => t('Default account settings'),
     '#description' => t('Configure these settings based on your Company Settings and API Credentials settings in the Recurly administration interface.'),
-  );
-  $form['account']['recurly_api_username'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Username'),
-    '#default_value' => variable_get('recurly_api_username', ''),
-  );
-  $form['account']['recurly_api_password'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Password'),
-    '#default_value' => variable_get('recurly_api_password', ''),
+    '#collapsible' => TRUE,
+    '#collapsed' => variable_get('recurly_api_username', '') != '' && variable_get('recurly_api_username', '') != '' && variable_get('recurly_subdomain', '') != '' && variable_get('recurly_environment', 'sandbox') != 'sandbox',
   );
   $form['account']['recurly_subdomain'] = array(
     '#type' => 'textfield',
     '#title' => t('Subdomain'),
     '#description' => t("The subdomain of your account excluding the -test suffix if still in Sandbox."),
     '#default_value' => variable_get('recurly_subdomain', ''),
+  );
+  $form['account']['recurly_hosted_payment_pages'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Hosted Payment Pages are enabled for this account.'),
+    '#default_value' => variable_get('recurly_hosted_payment_pages', FALSE),
+  );
+  $form['account']['recurly_api_username'] = array(
+    '#type' => 'textfield',
+    '#title' => t('API username'),
+    '#default_value' => variable_get('recurly_api_username', ''),
+  );
+  $form['account']['recurly_api_password'] = array(
+    '#type' => 'textfield',
+    '#title' => t('API password'),
+    '#default_value' => variable_get('recurly_api_password', ''),
   );
   $form['account']['recurly_environment'] = array(
     '#type' => 'radios',
@@ -72,7 +79,18 @@ function recurly_subscription_plans_overview() {
 
     // Add an edit link if available for the current user.
     if (user_access('edit subscription plans')) {
-      $operations[] = l(t('edit'), recurly_subscription_plan_edit_url($plan));
+      $operations[] = array(
+        'title' => 'edit',
+        'href' => recurly_subscription_plan_edit_url($plan),
+      );
+    }
+
+    // Add a purchase link if Hosted Payment Pages are enabled.
+    if (variable_get('recurly_hosted_payment_pages', FALSE)) {
+      $operations[] = array(
+        'title' => 'purchase',
+        'href' => recurly_subscription_plan_purchase_url($plan),
+      );
     }
 
     $rows[] = array(
@@ -81,7 +99,7 @@ function recurly_subscription_plans_overview() {
       t('@setup_fee', array('@setup_fee' => number_format($plan->setup_fee_in_cents / 100, 2))),
       t('@trial_length @trial_unit', array('@trial_length' => $plan->trial_interval_length, '@trial_unit' => $plan->trial_interval_unit)),
       format_date($plan->created_at),
-      implode(' ', $operations),
+      theme('links', array('links' => $operations, 'attributes' => array('class' => array('links', 'inline')))),
     );
   }
 

@@ -162,7 +162,7 @@ function recurly_url($path = '') {
     $subdomain .= '-test';
   }
 
-  return 'https://' . $subdomain . '.recurly.com/' . $path;
+  return url('https://' . $subdomain . '.recurly.com/' . $path);
 }
 
 /**
@@ -176,4 +176,28 @@ function recurly_url($path = '') {
  */
 function recurly_subscription_plan_edit_url($plan) {
   return recurly_url('company/plans/' . $plan->plan_code);
+}
+
+/**
+ * Returns a Hosted Payment Page URL for the given subscription plan.
+ *
+ * @param $plan
+ *   The subscription plan object returned by the Recurly client.
+ * @param $settings
+ *   An optional array of settings used to pre-populate the payment form.
+ *   - first_name: the customer's first name
+ *   - last_name: the customer's last name
+ *   - email: the customer's e-mail address
+ *
+ * @return
+ *   The URL for the plan's Hosted Payment Page at Recurly.
+ */
+function recurly_subscription_plan_purchase_url($plan, $settings = NULL) {
+  $query = '';
+
+  if (!empty($settings)) {
+    $query = '?' . drupal_http_build_query($settings);
+  }
+
+  return recurly_url('subscribe/' . $plan->plan_code . $query);
 }
