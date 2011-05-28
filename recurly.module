@@ -115,6 +115,84 @@ function recurly_client_initialize($settings = NULL) {
 }
 
 /**
+ * Saves an account record, optionally exporting the saved data to Recurly as a
+ * new account or update request as necessary.
+ *
+ * @param $account
+ *   The Recurly account object to save.
+ * @param $uid
+ *   The Drupal user ID the account is associated with.
+ * @param $data
+ *
+ * @param $export
+ *   Boolean indicating whether or not the saved account information should also
+ *   be exported to Recurly by either creating a new account or updating an
+ *   existing account based on the saved values using the Recurly API.
+ *
+ * @return
+ *   FALSE on failure of either the local save or optional export or SAVED_NEW
+ *   or SAVED_UPDATED indicating the type of query performed to save the account
+ *   information locally.
+ */
+function recurly_account_save($account, $uid, $data = array(), $export = FALSE) {
+  // First attempt to save the data at Recurly if specified. Failing an export
+  // will prevent local data from being saved so you don't end up with a local
+  // record that does not match a record at Recurly.
+  if ($export) {
+    // Check to see if the record already exists.
+    $recurly_account = RecurlyAccount::getAccount($account->account_code);
+
+    // If it does, then update the account.
+    if (!empty($recurly_account)) {
+      try {
+        $account->update();
+      }
+      catch (Exception $e) {
+        return FALSE;
+      }
+    }
+    else {
+      // Otherwise create it at Recurly now.
+      try {
+        $account->create();
+      }
+      catch (Exception $e) {
+        return FALSE;
+      }
+    }
+  }
+
+  // Now attempt to update the record locally.
+  $account->updated = REQUEST_TIME;
+
+  // Generate an array of data to save.
+  $fields = array(
+    'first_name' => $account->first_name,
+    'last_name' => $account->last_name,
+    'company_name' => $account->company_name,
+    'uid' => $uid,
+    'updated' => REQUEST_TIME,
+    'data' => serialize($data),
+  );
+
+  $rows_affected = db_update('recurly_account')
+    ->fields($fields)
+    ->condition('account_code', $account->account_code)
+    ->execute();
+
+  // If a row was affected, return the proper result code.
+  if ($rows_affected > 0) {
+    return SAVED_UPDATED;
+  }
+
+  // Add the account code to the fields array for an attempted insert.
+  $fields['account_code'] = $account->account_code;
+  $fields['data'] = $data;
+
+  return drupal_write_record('recurly_account', $fields);
+}
+
+/**
  * Returns an array of subscription plan objects for the current account,
  * retrieving them from a local cache if possible.
  *
