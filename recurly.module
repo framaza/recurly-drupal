@@ -355,9 +355,9 @@ function recurly_account_load($conditions = array()) {
  *   existing account based on the saved values using the Recurly API.
  *
  * @return
- *   FALSE on failure of either the local save or optional export or SAVED_NEW
- *   or SAVED_UPDATED indicating the type of query performed to save the account
- *   information locally.
+ *   FALSE on failure of either the local save or optional export or
+ *   STATUS_INSERT or STATUS_UPDATE indicating the type of query performed to
+ *   save the account information locally.
  */
 function recurly_account_save($recurly_account, $uid, $data = array(), $export = FALSE) {
   // First attempt to save the data at Recurly if specified. Failing an export
@@ -393,28 +393,28 @@ function recurly_account_save($recurly_account, $uid, $data = array(), $export =
     'first_name' => $recurly_account->first_name,
     'last_name' => $recurly_account->last_name,
     'company_name' => $recurly_account->company_name,
-    'status' => $recurly_account->state,
     'uid' => $uid,
     'updated' => REQUEST_TIME,
     'data' => serialize($data),
   );
 
-  // Now attempt to update the record locally.
-  $rows_affected = db_update('recurly_account')
-    ->fields($fields)
-    ->condition('account_code', $recurly_account->account_code)
-    ->execute();
-
-  // If a row was affected, return the proper result code.
-  if ($rows_affected > 0) {
-    return SAVED_UPDATED;
+  // Add the status based on whatever data we have available.
+  if (!empty($recurly_account->state)) {
+    $fields['status'] = $recurly_account->state;
+  }
+  elseif (!empty($recurly_account->status)) {
+    $fields['status'] = $recurly_account->status;
+  }
+  else {
+    $fields['status'] = 'active';
   }
 
-  // Add the account code to the fields array for an attempted insert.
-  $fields['account_code'] = $recurly_account->account_code;
-  $fields['data'] = $data;
-
-  return drupal_write_record('recurly_account', $fields);
+  // Execute a merge query that will either insert a new record or update an
+  // existing record accordingly.
+  return db_merge('recurly_account')
+    ->key(array('account_code' => $recurly_account->account_code))
+    ->fields($fields)
+    ->execute();
 }
 
 /**
