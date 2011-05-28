@@ -16,6 +16,13 @@ function recurly_schema() {
         'not null' => TRUE,
         'default' => '',
       ),
+      'email' => array(
+        'description' => 'The e-mail address associated with the account in Recurly.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
       'first_name' => array(
         'description' => 'The first name of the account holder.',
         'type' => 'varchar',
@@ -34,6 +41,13 @@ function recurly_schema() {
         'description' => 'The company name associated with the account.',
         'type' => 'varchar',
         'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'status' => array(
+        'description' => 'Whether the account is closed or active.',
+        'type' => 'varchar',
+        'size' => '255',
         'not null' => TRUE,
         'default' => '',
       ),

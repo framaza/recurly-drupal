@@ -49,6 +49,20 @@ function recurly_settings_form($form, &$form_state) {
     '#default_value' => variable_get('recurly_environment', 'sandbox'),
   );
 
+  $form['integration'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Integration settings'),
+    '#collapsible' => TRUE,
+  );
+  $form['integration']['recurly_account_integration'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Account integration'),
+    '#options' => array(
+      'profile_display' => t('Display Recurly account information on user profile pages, including account management links if Hosted Payment Pages are enabled.'),
+    ),
+    '#default_value' => variable_get('recurly_account_integration', array()),
+  );
+
   return system_settings_form($form);
 }
 

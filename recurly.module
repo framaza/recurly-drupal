@@ -47,7 +47,7 @@ function recurly_permission() {
   $permissions = array(
     'administer recurly' => array(
       'title' => t('Administer Recurly'),
-      'description' => t('Allows users to configure site-wide Recurly API settings and points of integration.'),
+      'description' => t('Allows users to configure site-wide Recurly account settings and grants access to all integration activities.'),
       'restrict access' => TRUE,
     ),
     'edit subscription plans' => array(
@@ -55,6 +55,28 @@ function recurly_permission() {
       'description' => t('Determines whether or not the user should see links to edit subscription plans at Recurly. Grants of this permission should coordinate with user permissions at Recurly.'),
       'restrict access' => TRUE,
     ),
+    'view all recurly accounts' => array(
+      'title' => t('View all Recurly accounts'),
+      'description' => t('Allows users to view the Recurly account information linked to any user on the site.'),
+      'restrict access' => TRUE,
+    ),
+    'edit all recurly accounts' => array(
+      'title' => t('Edit all Recurly accounts'),
+      'description' => t('Determines whether or not the user should see links to edit accounts in the Recurly administrative interface. Grants of this permission should coordinate with user permissions at Recurly.'),
+      'restrict access' => TRUE,
+    ),
+    'view own recurly account' => array(
+      'title' => t('View own Recurly account'),
+      'description' => t('Allows users to view Recurly account information linked to their user accounts.'),
+    ),
+    'edit own recurly account' => array(
+      'title' => t('Edit own Recurly account'),
+      'description' => t('Determines whether or not users should see links to edit their own account information on the hosted account management page at Recurly.'),
+    ),
+    'edit own recurly account without login' => array(
+      'title' => t('Edit own Recurly account without login'),
+      'description' => t('Gives users direct edit links for their Recurly accounts if available that bypasses the normal login process on the hosted account management page.'),
+    )
   );
 
   return $permissions;
@@ -68,6 +90,108 @@ function recurly_help($path, $arg) {
     case 'admin/config/services/recurly/subscription-plans':
       return '<p>' . t('The subscription plans below are defined for the Recurly account configured in your default account settings. Plans should be defined and updated at Recurly and are cached here for informational purposes only. Edit links and purchase links that may appear in the table redirect to Recurly.') . '</p>';
   }
+}
+
+/**
+ * Implements hook_user_view().
+ *
+ * If enabled, adds Recurly account information and management links to user
+ * profiles linked to accounts.
+ */
+function recurly_user_view($account, $view_mode, $langcode) {
+  global $user;
+
+  // If this is an authenticated account and the current user has access to view
+  // its Recurly account information...
+  if ($account->uid && recurly_account_access('view', $account)) {
+    // Initialize the Recurly client.
+    recurly_client_initialize();
+
+    // If the account is linked to a Recurly account...
+    if ($recurly_account = recurly_account_load(array('uid' => $account->uid))) {
+      // Add it to the content array.
+      $account->content['recurly_account'] = array(
+        '#type' => 'user_profile_category',
+        '#title' => t('Subscription information'),
+        '#weight' => 0,
+      );
+
+      // Build an account holder string based on available data.
+      if (empty($recurly_account->company_name)) {
+        $account_holder = t('@first_name @last_name', array('@first_name' => $recurly_account->first_name, '@last_name' => $recurly_account->last_name));
+      }
+      else {
+        $account_holder = t('@first_name @last_name, @company_name', array('@first_name' => $recurly_account->first_name, '@last_name' => $recurly_account->last_name, '@company_name' => $recurly_account->company_name));
+      }
+
+      $account->content['recurly_account']['account_holder'] = array(
+        '#type' => 'user_profile_item',
+        '#title' => t('Account holder'),
+        '#markup' => $account_holder,
+      );
+
+      // Add the account e-mail address if available.
+      if (!empty($recurly_account->email)) {
+        $account->content['recurly_account']['account_email'] = array(
+          '#type' => 'user_profile_item',
+          '#title' => t('Account e-mail address'),
+          '#markup' => check_plain($recurly_account->email),
+        );
+      }
+
+      // Tell the user if the account is closed.
+      if ((empty($recurly_account->state) && $recurly_account->status == 'closed') ||
+        (!empty($recurly_account->state) && $recurly_account->state == 'closed')) {
+        $account->content['recurly_account']['account_closed'] = array(
+          '#type' => 'user_profile_item',
+          '#title' => t('Account status'),
+          '#markup' => t('Our records indicate your account is closed. We are not currently billing your for any subscriptions.'),
+        );
+      }
+
+      // Add an appropriate account edit link if the user has access.
+      if (recurly_account_access('edit', $account)) {
+        // Give administrators a link to the back end.
+        if (user_access('administer recurly') || user_access('edit all recurly accounts')) {
+          $account->content['recurly_account']['edit_account_link'] = array(
+            '#type' => 'user_profile_item',
+            '#title' => t('Administer account'),
+            '#markup' => l(t('Edit this account at Recurly.'), recurly_account_edit_url($recurly_account)),
+          );
+        }
+
+        // If Hosted Payment Pages are enabled, give users a link to their own
+        // account management page.
+        if (variable_get('recurly_hosted_payment_pages', FALSE) && $user->uid == $account->uid) {
+          // Give users manage links for their own accounts.
+          $account->content['recurly_account']['manage_account_link'] = array(
+            '#type' => 'user_profile_item',
+            '#title' => t('Manage account'),
+            '#markup' => l(t('Update your subscription and billing information at Recurly.'), recurly_account_manage_url($recurly_account, user_access('edit own recurly account without login'))),
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Determines whether or not the specified point of integration is enabled.
+ *
+ * @param $integration
+ *   The type of integration option to check from the following:
+ *   - account: integration with Recurly accounts
+ * @param $option
+ *   The name of the option to check to see if it's enabled based on the type of
+ *   integration, including:
+ *   - account:
+ *     - profile_display: show Recurly account information on user profiles
+ *
+ * @return
+ *   Boolean indicating whether or not the point of integration is enabled.
+ */
+function recurly_integration_option_enabled($integration, $option) {
+  return in_array($option, variable_get('recurly_' . $integration . '_integration', array()));
 }
 
 /**
@@ -115,10 +239,111 @@ function recurly_client_initialize($settings = NULL) {
 }
 
 /**
+ * Determines whether or not the given account has access to perform the
+ * requested operation on the target account's Recurly account information.
+ *
+ * @param $op
+ *   The operation to perform on the Recurly account; 'view' or 'edit'.
+ * @param $target_account
+ *   The Drupal user account whose Recurly account information would be
+ *   operated on.
+ * @param $account
+ *   The Drupal user account performing the operation; defaults to the current
+ *   user.
+ *
+ * @return
+ */
+function recurly_account_access($op, $target_account, $account = NULL) {
+  global $user;
+
+  // Initialize the account to the current user if it's empty.
+  if (empty($account)) {
+    $account = clone($user);
+  }
+
+  // Allow administrators to perform any operation.
+  if (user_access('administer recurly', $account)) {
+    return TRUE;
+  }
+
+  // Allow users with access to view or edit all accounts to perform operations.
+  if (user_access($op . ' all recurly accounts', $account)) {
+    return TRUE;
+  }
+
+  // Allow users with access to view or edit their own accounts.
+  if (user_access($op . ' own recurly account') && $account->uid == $target_account->uid) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * Loads a Recurly account record based on the given conditions.
+ *
+ * @param $conditions
+ *   An associative array of values to look for in the conditions of the query;
+ *   normally used to look-up on account_code or uid.
+ *
+ * @return
+ *   The fully loaded account object from Recurly if possible. If Recurly cannot
+ *   be accessed, just returns an object representing the data stored locally.
+ *   If the account no longer exists at Recurly, the returned object will
+ *   include an additional 'orphaned' property set to TRUE. Returns FALSE if no
+ *   data can be found locally at all.
+ */
+function recurly_account_load($conditions = array()) {
+  // Create a base select query object.
+  $query = db_select('recurly_account', 'ra')->fields('ra');
+
+  // Add conditions to it based on the passed array.
+  foreach ($conditions as $key => $value) {
+    $query->condition($key, $value);
+  }
+
+  // Retrieve data if available.
+  $data = $query->execute()->fetchObject();
+
+  // Bail now if no data was returned.
+  if (empty($data)) {
+    return FALSE;
+  }
+
+  // Unserialize the data array.
+  $data->data = unserialize($data->data);
+
+  // Attempt to load the full account from Recurly.
+  try {
+    $recurly_account = RecurlyAccount::getAccount($data->account_code);
+
+    // Return the orphaned data if no account was found at Recurly.
+    if (empty($recurly_account)) {
+      $data->orphaned = TRUE;
+      return $data;
+    }
+
+    // If any data has changed remotely, update it locally now.
+    if ($recurly_account->first_name != $data->first_name ||
+      $recurly_account->last_name != $data->last_name ||
+      $recurly_account->company_name != $data->company_name ||
+      $recurly_account->email != $data->email ||
+      $recurly_account->state != $data->status) {
+      recurly_account_save($recurly_account, $data->uid);
+    }
+  }
+  catch (Exception $e) {
+    return $data;
+  }
+
+  return $recurly_account;
+}
+
+/**
  * Saves an account record, optionally exporting the saved data to Recurly as a
  * new account or update request as necessary.
  *
- * @param $account
+ * @param $recurly_account
  *   The Recurly account object to save.
  * @param $uid
  *   The Drupal user ID the account is associated with.
@@ -134,18 +359,18 @@ function recurly_client_initialize($settings = NULL) {
  *   or SAVED_UPDATED indicating the type of query performed to save the account
  *   information locally.
  */
-function recurly_account_save($account, $uid, $data = array(), $export = FALSE) {
+function recurly_account_save($recurly_account, $uid, $data = array(), $export = FALSE) {
   // First attempt to save the data at Recurly if specified. Failing an export
   // will prevent local data from being saved so you don't end up with a local
   // record that does not match a record at Recurly.
   if ($export) {
     // Check to see if the record already exists.
-    $recurly_account = RecurlyAccount::getAccount($account->account_code);
+    $remote_account = RecurlyAccount::getAccount($recurly_account->account_code);
 
     // If it does, then update the account.
-    if (!empty($recurly_account)) {
+    if (!empty($remote_account)) {
       try {
-        $account->update();
+        $recurly_account->update();
       }
       catch (Exception $e) {
         return FALSE;
@@ -154,7 +379,7 @@ function recurly_account_save($account, $uid, $data = array(), $export = FALSE) 
     else {
       // Otherwise create it at Recurly now.
       try {
-        $account->create();
+        $recurly_account->create();
       }
       catch (Exception $e) {
         return FALSE;
@@ -162,22 +387,22 @@ function recurly_account_save($account, $uid, $data = array(), $export = FALSE) 
     }
   }
 
-  // Now attempt to update the record locally.
-  $account->updated = REQUEST_TIME;
-
   // Generate an array of data to save.
   $fields = array(
-    'first_name' => $account->first_name,
-    'last_name' => $account->last_name,
-    'company_name' => $account->company_name,
+    'email' => $recurly_account->email,
+    'first_name' => $recurly_account->first_name,
+    'last_name' => $recurly_account->last_name,
+    'company_name' => $recurly_account->company_name,
+    'status' => $recurly_account->state,
     'uid' => $uid,
     'updated' => REQUEST_TIME,
     'data' => serialize($data),
   );
 
+  // Now attempt to update the record locally.
   $rows_affected = db_update('recurly_account')
     ->fields($fields)
-    ->condition('account_code', $account->account_code)
+    ->condition('account_code', $recurly_account->account_code)
     ->execute();
 
   // If a row was affected, return the proper result code.
@@ -186,7 +411,7 @@ function recurly_account_save($account, $uid, $data = array(), $export = FALSE) 
   }
 
   // Add the account code to the fields array for an attempted insert.
-  $fields['account_code'] = $account->account_code;
+  $fields['account_code'] = $recurly_account->account_code;
   $fields['data'] = $data;
 
   return drupal_write_record('recurly_account', $fields);
@@ -244,7 +469,42 @@ function recurly_url($path = '') {
 }
 
 /**
- * Returns an edit URL for a subscription plan at the current account.
+ * Returns an edit URL for a Recurly account.
+ *
+ * @param $recurly_account
+ *   The account object returned by the Recurly client.
+ *
+ * @return
+ *   The URL for the plan's edit page at Recurly.
+ */
+function recurly_account_edit_url($recurly_account) {
+  return recurly_url('accounts/' . $recurly_account->account_code);
+}
+
+/**
+ * Returns a front end management URL for a Recurly account.
+ *
+ * @param $recurly_account
+ *   The account object returned by the Recurly client.
+ * @param $hosted_login_token
+ *   Boolean indicating whether or not to use the hosted login token in the URL
+ *   if it's available in the account object; defaults to FALSE.
+ *
+ * @return
+ *   The URL for the account's front end management page at Recurly; uses the
+ *   hosted login token if specified and it's available.
+ */
+function recurly_account_manage_url($recurly_account, $hosted_login_token = FALSE) {
+  // Return a URL using the hosted login token if available.
+  if ($hosted_login_token && !empty($recurly_account->hosted_login_token)) {
+    return recurly_url('account/' . $recurly_account->hosted_login_token);
+  }
+
+  return recurly_url('account');
+}
+
+/**
+ * Returns an edit URL for a subscription plan.
  *
  * @param $plan
  *   The subscription plan object returned by the Recurly client.
