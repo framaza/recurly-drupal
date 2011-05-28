@@ -161,8 +161,10 @@ function recurly_user_view($account, $view_mode, $langcode) {
         }
 
         // If Hosted Payment Pages are enabled, give users a link to their own
-        // account management page.
-        if (variable_get('recurly_hosted_payment_pages', FALSE) && $user->uid == $account->uid) {
+        // account management page if their account is active.
+        if (variable_get('recurly_hosted_payment_pages', FALSE) &&
+          $user->uid == $account->uid &&
+          $recurly_account->state == 'active') {
           // Give users manage links for their own accounts.
           $account->content['recurly_account']['manage_account_link'] = array(
             '#type' => 'user_profile_item',
@@ -172,6 +174,75 @@ function recurly_user_view($account, $view_mode, $langcode) {
         }
       }
     }
+  }
+}
+
+/**
+ * Implements hook_filter_info().
+ */
+function recurly_filter_info() {
+  $filters = array();
+
+  $filters['recurly_subscription_plan_tokens'] = array(
+    'title' => t('Token replacement for Recurly subscription plans'),
+    'description' => t('Converts tokens to URLs and submit buttons redirecting to Recurly Hosted Payment Pages for subscription plans using the default account settings.'),
+    'tips callback' => 'recurly_filter_recurly_subscription_plan_tokens_tips',
+    'process callback' => 'recurly_filter_recurly_subscription_plan_tokens_process',
+    'cache' => FALSE,
+  );
+
+  return $filters;
+}
+
+/**
+ * Tips callback: provides help for using Recurly subscription plan tokens.
+ */
+function recurly_filter_recurly_subscription_plan_tokens_tips($filter, $format, $long) {
+  if ($long) {
+    return t('Recurly subscription plan tokens using the format [recurly-subscribe-url:<em>code</em>] and [recurly-subscribe-button:<em>code</em>] will be converted to URLs and buttons respectively. Replace <em>code</em> with a valid subscription plan code for your default Recurly account.');
+  }
+  else {
+    return t('Recurly subscription plan tokens will be converted to URLs / submit buttons.');
+  }
+}
+
+/**
+ * Process callback: replaces Recurly subscription link and submit button tokens.
+ */
+function recurly_filter_recurly_subscription_plan_tokens_process($text, $filter, $format, $langcode, $cache, $cache_id) {
+  // If the default account support Hosted Payment Pages and we detect the
+  // presence of what appears to be a valid token...
+  if (variable_get('recurly_hosted_payment_pages', FALSE) &&
+    strpos($text, '[recurly-subscribe-') !== FALSE) {
+    // Initialize the Recurly client with the default account.
+    recurly_client_initialize();
+
+    // Perform the token replacement using a callback that properly returns a
+    // URL or a rendered form.
+    $text = preg_replace_callback('/\[recurly-subscribe-(url|button):[A-Za-z0-9_\-\+]+\]/', '_recurly_filter_recurly_subscription_plan_tokens_process', $text);
+  }
+
+  return $text;
+}
+
+/**
+ * Returns the replacement for a token match to preg_replace_callback().
+ */
+function _recurly_filter_recurly_subscription_plan_tokens_process($matches) {
+  $plan = new stdClass;
+
+  // Extract the code from the token into a pseudo subscription plan object. We
+  // use the pseudo object to avoid the lag from attempting to load the whole
+  // object.
+  list(, $plan->plan_code) = explode(':', trim($matches[0], '[]'));
+
+  // Return the appropriate replacement based on the type of token.
+  switch ($matches[1]) {
+    case 'url':
+      return recurly_subscription_plan_purchase_url($plan);
+
+    case 'button':
+      return drupal_render(drupal_get_form('recurly_subscription_plan_purchase_redirect_form', $plan));
   }
 }
 
@@ -538,4 +609,32 @@ function recurly_subscription_plan_purchase_url($plan, $settings = NULL) {
   }
 
   return recurly_url('subscribe/' . $plan->plan_code . $query);
+}
+
+/**
+ * Returns a form with a submit button that redirects the user to the Hosted
+ * Payment Page for the given plan.
+ *
+ * @param $plan
+ *   A subscription plan object that contains at least a valid plan code.
+ */
+function recurly_subscription_plan_purchase_redirect_form($form, &$form_state, $plan) {
+  $form['plan'] = array(
+    '#type' => 'value',
+    '#value' => $plan,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Subscribe'),
+  );
+
+  return $form;
+}
+
+/**
+ * Submit callback: redirect the user to the specified Hosted Payment Page.
+ */
+function recurly_subscription_plan_purchase_redirect_form_submit($form, &$form_state) {
+  $form_state['redirect'] = recurly_subscription_plan_purchase_url($form_state['values']['plan']);
 }
