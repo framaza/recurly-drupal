@@ -80,7 +80,7 @@ function recurly_subscription_plans_overview() {
     // Add an edit link if available for the current user.
     if (user_access('edit subscription plans')) {
       $operations[] = array(
-        'title' => 'edit',
+        'title' => t('edit'),
         'href' => recurly_subscription_plan_edit_url($plan),
       );
     }
@@ -88,7 +88,7 @@ function recurly_subscription_plans_overview() {
     // Add a purchase link if Hosted Payment Pages are enabled.
     if (variable_get('recurly_hosted_payment_pages', FALSE)) {
       $operations[] = array(
-        'title' => 'purchase',
+        'title' => t('purchase'),
         'href' => recurly_subscription_plan_purchase_url($plan),
       );
     }

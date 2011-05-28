@@ -85,3 +85,15 @@ function recurly_schema() {
 
   return $schema;
 }
+
+/**
+ * Implements hook_uninstall().
+ */
+function recurly_uninstall() {
+  // Remove the site-wide account settings.
+  variable_del('recurly_subdomain');
+  variable_del('recurly_hosted_payment_pages');
+  variable_del('recurly_api_username');
+  variable_del('recurly_api_password');
+  variable_del('recurly_environment');
+}
