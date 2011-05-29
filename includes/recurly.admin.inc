@@ -67,14 +67,9 @@ function recurly_settings_form($form, &$form_state) {
     '#default_value' => variable_get('recurly_push_password', ''),
   );
   $form['push']['recurly_push_logging'] = array(
-    '#type' => 'checkboxes',
-    '#title' => t('Log the following types of push notifications'),
-    '#options' => array(
-      'accounts' => t('Account notifications'),
-      'subscriptions' => t('Subscription notifications'),
-      'payments' => t('Payment notifications'),
-    ),
-    '#default_value' => variable_get('recurly_push_logging', array()),
+    '#type' => 'checkbox',
+    '#title' => t('Log authenticated incoming push notifications. (Primarily used for debugging purposes.)'),
+    '#default_value' => variable_get('recurly_push_logging', FALSE),
   );
 
   // Add form elements allowing the administrator to toggle integration options.

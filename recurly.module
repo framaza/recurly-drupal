@@ -336,6 +336,11 @@ function recurly_process_push_notification($subdomain = NULL) {
       return;
     }
 
+    // Log the authenticated push notification if enabled.
+    if (variable_get('recurly_push_logging', FALSE)) {
+      watchdog('recurly', 'Incoming push notification authenticated: !notification', array('!notification' => '<pre>' . check_plain(print_r($notification, TRUE)) . '</pre>'), WATCHDOG_NOTICE);
+    }
+
     // If push synchronization is enabled for account data and the incoming
     // notification is an account update...
     if ((recurly_integration_option_enabled('account', 'push_create') || recurly_integration_option_enabled('account', 'push_update')) &&
