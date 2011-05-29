@@ -13,6 +13,21 @@
 function recurly_menu() {
   $items = array();
 
+  // Define an always accessible push notification listener menu item.
+  $items['recurly/listener'] = array(
+    'page callback' => 'recurly_process_push_notification',
+    'page arguments' => array(),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['recurly/listener/%'] = array(
+    'page callback' => 'recurly_process_push_notification',
+    'page arguments' => array(2),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+
+  // Define administrative menu items.
   $items['admin/config/services/recurly'] = array(
     'title' => 'Recurly',
     'description' => 'Configure your Recurly API settings and points of integration with Drupal.',
@@ -263,6 +278,56 @@ function _recurly_filter_recurly_subscription_plan_tokens_process($matches) {
  */
 function recurly_integration_option_enabled($integration, $option) {
   return in_array($option, variable_get('recurly_' . $integration . '_integration', array()));
+}
+
+/**
+ * Processes an incoming push notification.
+ *
+ * Push notifications are configured at Recurly, where you can setup the URL
+ * that listens for notifications and an HTTP username and password to use for
+ * basic authentication. When a notification is received, this function will
+ * perform some optional processing immediately if it is determined the received
+ * notification is from the default account.
+ *
+ * Other modules can react to incoming push notifications by implementing
+ * hook_recurly_process_push_notification(). The hook receives the subdomain as
+ * received in the listener URL; implementations can discern from this what
+ * Recurly account sent the notification, with a NULL value or the default
+ * account subdomain indicating the site's default account generated the push
+ * notification. If the notification was not from the default account, the
+ * implementations -must- perform their own authentication and parsing of the
+ * POST XML. If the notification was from the default account, it will have
+ * already passed HTTP basic authentication, and the hook implementation will
+ * received an already parsed notification object.
+ *
+ * @param $subdomain
+ *   If specified, this is the subdomain of the Recurly account that sent the
+ *   push notification; defaults to NULL indicating it is the default account as
+ *   configured in the Recurly settings.
+ */
+function recurly_process_push_notification($subdomain = NULL) {
+  $notification = NULL;
+
+  // If no subdomain was derived from the URL or the default account subdomain
+  // was specified...
+  if (empty($subdomain) || $subdomain == variable_get('recurly_subdomain', '')) {
+    // Confirm the notification passes authentication.
+    if (variable_get('recurly_push_username', '') != $_SERVER['PHP_AUTH_USER'] ||
+      variable_get('recurly_push_password', '') != $_SERVER['PHP_AUTH_PW']) {
+      // Log the failed attempt and bail.
+      watchdog('recurly', 'Incoming push notification did not pass basic HTTP authentication.', array(), WATCHDOG_WARNING);
+      return;
+    }
+
+    // Initialize the Recurly client with the default account settings.
+    recurly_client_initialize();
+
+    // Retrieve the POST XML and create a notification object from it.
+    $post_xml = file_get_contents('php://input');
+    $notification = new RecurlyPushNotification($post_xml);
+  }
+
+  module_invoke_all('recurly_process_push_notification', $subdomain, $notification);
 }
 
 /**

@@ -10,12 +10,12 @@
  * Returns the site-wide Recurly settings form.
  */
 function recurly_settings_form($form, &$form_state) {
+  // Add form elements to collect default account information.
   $form['account'] = array(
     '#type' => 'fieldset',
     '#title' => t('Default account settings'),
     '#description' => t('Configure these settings based on your Company Settings and API Credentials settings in the Recurly administration interface.'),
     '#collapsible' => TRUE,
-    '#collapsed' => variable_get('recurly_api_username', '') != '' && variable_get('recurly_api_username', '') != '' && variable_get('recurly_subdomain', '') != '' && variable_get('recurly_environment', 'sandbox') != 'sandbox',
   );
   $form['account']['recurly_subdomain'] = array(
     '#type' => 'textfield',
@@ -49,9 +49,38 @@ function recurly_settings_form($form, &$form_state) {
     '#default_value' => variable_get('recurly_environment', 'sandbox'),
   );
 
+  // Add form elements to configure default push notification settings.
+  $form['push'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Push notification settings'),
+    '#description' => t('The username and password settings must match your Push Notifications settings in the Recurly administration interface.') . '<br />' . t('Configure your default account to use @url as its Push Notification URL.', array('@url' => url('recurly/listener', array('absolute' => TRUE)))),
+    '#collapsible' => TRUE,
+  );
+  $form['push']['recurly_push_username'] = array(
+    '#type' => 'textfield',
+    '#title' => t('HTTP auth username'),
+    '#default_value' => variable_get('recurly_push_username', ''),
+  );
+  $form['push']['recurly_push_password'] = array(
+    '#type' => 'textfield',
+    '#title' => t('HTTP auth password'),
+    '#default_value' => variable_get('recurly_push_password', ''),
+  );
+  $form['push']['recurly_push_logging'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Log the following types of push notifications'),
+    '#options' => array(
+      'accounts' => t('Account notifications'),
+      'subscriptions' => t('Subscription notifications'),
+      'payments' => t('Payment notifications'),
+    ),
+    '#default_value' => variable_get('recurly_push_logging', array()),
+  );
+
+  // Add form elements allowing the administrator to toggle integration options.
   $form['integration'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Integration settings'),
+    '#title' => t('Integration options'),
     '#collapsible' => TRUE,
   );
   $form['integration']['recurly_account_integration'] = array(
