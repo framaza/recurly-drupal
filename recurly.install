@@ -104,4 +104,11 @@ function recurly_uninstall() {
   variable_del('recurly_api_username');
   variable_del('recurly_api_password');
   variable_del('recurly_environment');
+
+  // Remove the push notification settings.
+  variable_del('recurly_listener_key');
+  variable_del('recurly_push_logging');
+
+  // Remove the integration options settings.
+  variable_del('recurly_account_integration');
 }
