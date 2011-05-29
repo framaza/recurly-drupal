@@ -88,6 +88,8 @@ function recurly_settings_form($form, &$form_state) {
     '#title' => t('Account integration'),
     '#options' => array(
       'profile_display' => t('Display Recurly account information on user profile pages, including account management links if Hosted Payment Pages are enabled.'),
+      'push_create' => t('Create local account records upon receipt of push notifications linked to users by e-mail address. For maximum security, this should only be enabled if e-mail account verification is required during registration.'),
+      'push_update' => t('Update local account records upon receipt of push notifications. This option can be used without creating local account records on notifications, but if you are, you should most likely be updating them, too.'),
     ),
     '#default_value' => variable_get('recurly_account_integration', array()),
   );

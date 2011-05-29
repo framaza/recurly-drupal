@@ -315,8 +315,10 @@ function recurly_process_push_notification($subdomain = NULL) {
   // was specified...
   if (empty($subdomain) || $subdomain == variable_get('recurly_subdomain', '')) {
     // Confirm the notification passes authentication.
-    if (variable_get('recurly_push_username', '') != $_SERVER['PHP_AUTH_USER'] ||
-      variable_get('recurly_push_password', '') != $_SERVER['PHP_AUTH_PW']) {
+    if ((!empty($_SERVER['PHP_AUTH_USER']) && variable_get('recurly_push_username', '') != $_SERVER['PHP_AUTH_USER']) ||
+      (variable_get('recurly_push_username', '') != '' && empty($_SERVER['PHP_AUTH_USER'])) ||
+      (!empty($_SERVER['PHP_AUTH_PW']) && variable_get('recurly_push_password', '') != $_SERVER['PHP_AUTH_PW']) ||
+      (variable_get('recurly_push_password', '') != '' && empty($_SERVER['PHP_AUTH_PW']))) {
       // Log the failed attempt and bail.
       watchdog('recurly', 'Incoming push notification did not pass basic HTTP authentication.', array(), WATCHDOG_WARNING);
       return;
@@ -328,6 +330,45 @@ function recurly_process_push_notification($subdomain = NULL) {
     // Retrieve the POST XML and create a notification object from it.
     $post_xml = file_get_contents('php://input');
     $notification = new RecurlyPushNotification($post_xml);
+
+    // Bail if this is an empty or invalid notification.
+    if (empty($notification) || empty($notification->type)) {
+      return;
+    }
+
+    // If push synchronization is enabled for account data and the incoming
+    // notification is an account update...
+    if ((recurly_integration_option_enabled('account', 'push_create') || recurly_integration_option_enabled('account', 'push_update')) &&
+      in_array($notification->type, array('new_account_notification', 'canceled_account_notification', 'billing_info_updated_notification'))) {
+      // Retrieve the full account record from Recurly.
+      $recurly_account = RecurlyAccount::getAccount($notification->account->account_code);
+
+      // If we couldn't get anything, just attempt to use the submitted data.
+      if (empty($recurly_account)) {
+        $recurly_account = $notification->account;
+      }
+
+      // Look for a pre-existing local record.
+      $local_account = recurly_account_load(array('account_code' => $recurly_account->account_code), TRUE);
+
+      // If no local record exists and we've specified to create it...
+      if (empty($local_account) && recurly_integration_option_enabled('account', 'push_create')) {
+        $uid = 0;
+
+        // Attempt to find a matching user account.
+        if ($user = user_load_by_mail($recurly_account->email)) {
+          $uid = $user->uid;
+        }
+
+        // Save the local record now.
+        recurly_account_save($recurly_account, $uid);
+      }
+      elseif(!empty($local_account) && recurly_integration_option_enabled('account', 'push_update')) {
+        // Otherwise if a local record was found and we want to keep it
+        // synchronized, save it afresh now, preserving any existing data array.
+        recurly_account_save($recurly_account, $local_account->uid, $local_account->data);
+      }
+    }
   }
 
   module_invoke_all('recurly_process_push_notification', $subdomain, $notification);
@@ -424,6 +465,9 @@ function recurly_account_access($op, $target_account, $account = NULL) {
  * @param $conditions
  *   An associative array of values to look for in the conditions of the query;
  *   normally used to look-up on account_code or uid.
+ * @param $local
+ *   Boolean indicating whether or not to only return local data; defaults to
+ *   FALSE, meaning it will attempt to load the full linked account object.
  *
  * @return
  *   The fully loaded account object from Recurly if possible. If Recurly cannot
@@ -432,7 +476,7 @@ function recurly_account_access($op, $target_account, $account = NULL) {
  *   include an additional 'orphaned' property set to TRUE. Returns FALSE if no
  *   data can be found locally at all.
  */
-function recurly_account_load($conditions = array()) {
+function recurly_account_load($conditions = array(), $local = FALSE) {
   // Create a base select query object.
   $query = db_select('recurly_account', 'ra')->fields('ra');
 
@@ -451,6 +495,11 @@ function recurly_account_load($conditions = array()) {
 
   // Unserialize the data array.
   $data->data = unserialize($data->data);
+
+  // If we only want local data, return it now.
+  if ($local) {
+    return $data;
+  }
 
   // Attempt to load the full account from Recurly.
   try {
@@ -487,7 +536,7 @@ function recurly_account_load($conditions = array()) {
  * @param $uid
  *   The Drupal user ID the account is associated with.
  * @param $data
- *
+ *   An array of data to store with the local record.
  * @param $export
  *   Boolean indicating whether or not the saved account information should also
  *   be exported to Recurly by either creating a new account or updating an
