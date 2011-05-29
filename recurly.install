@@ -87,6 +87,14 @@ function recurly_schema() {
 }
 
 /**
+ * Implements hook_install().
+ */
+function recurly_install() {
+  // Initialize the Recurly listener key variable.
+  variable_set('recurly_listener_key', substr(drupal_hash_base64(REQUEST_TIME), 0, 8));
+}
+
+/**
  * Implements hook_uninstall().
  */
 function recurly_uninstall() {

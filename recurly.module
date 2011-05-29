@@ -14,15 +14,15 @@ function recurly_menu() {
   $items = array();
 
   // Define an always accessible push notification listener menu item.
-  $items['recurly/listener'] = array(
-    'page callback' => 'recurly_process_push_notification',
-    'page arguments' => array(),
-    'access callback' => TRUE,
-    'type' => MENU_CALLBACK,
-  );
   $items['recurly/listener/%'] = array(
     'page callback' => 'recurly_process_push_notification',
     'page arguments' => array(2),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['recurly/listener/%/%'] = array(
+    'page callback' => 'recurly_process_push_notification',
+    'page arguments' => array(2, 3),
     'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
@@ -308,19 +308,16 @@ function recurly_integration_option_enabled($integration, $option) {
  *   push notification; defaults to NULL indicating it is the default account as
  *   configured in the Recurly settings.
  */
-function recurly_process_push_notification($subdomain = NULL) {
+function recurly_process_push_notification($key, $subdomain = NULL) {
   $notification = NULL;
 
   // If no subdomain was derived from the URL or the default account subdomain
   // was specified...
   if (empty($subdomain) || $subdomain == variable_get('recurly_subdomain', '')) {
-    // Confirm the notification passes authentication.
-    if ((!empty($_SERVER['PHP_AUTH_USER']) && variable_get('recurly_push_username', '') != $_SERVER['PHP_AUTH_USER']) ||
-      (variable_get('recurly_push_username', '') != '' && empty($_SERVER['PHP_AUTH_USER'])) ||
-      (!empty($_SERVER['PHP_AUTH_PW']) && variable_get('recurly_push_password', '') != $_SERVER['PHP_AUTH_PW']) ||
-      (variable_get('recurly_push_password', '') != '' && empty($_SERVER['PHP_AUTH_PW']))) {
+    // Ensure the push notification was sent to the proper URL.
+    if ($key != variable_get('recurly_listener_key', '')) {
       // Log the failed attempt and bail.
-      watchdog('recurly', 'Incoming push notification did not pass basic HTTP authentication.', array(), WATCHDOG_WARNING);
+      watchdog('recurly', 'Incoming push notification did not contain the proper URL key.', array(), WATCHDOG_WARNING);
       return;
     }
 
@@ -336,9 +333,9 @@ function recurly_process_push_notification($subdomain = NULL) {
       return;
     }
 
-    // Log the authenticated push notification if enabled.
+    // Log the incoming push notification if enabled.
     if (variable_get('recurly_push_logging', FALSE)) {
-      watchdog('recurly', 'Incoming push notification authenticated: !notification', array('!notification' => '<pre>' . check_plain(print_r($notification, TRUE)) . '</pre>'), WATCHDOG_NOTICE);
+      watchdog('recurly', 'Incoming @type push notification: !notification', array('@type' => $notification->type, '!notification' => '<pre>' . check_plain(print_r($notification, TRUE)) . '</pre>'), WATCHDOG_NOTICE);
     }
 
     // If push synchronization is enabled for account data and the incoming

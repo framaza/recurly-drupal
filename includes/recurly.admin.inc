@@ -53,18 +53,17 @@ function recurly_settings_form($form, &$form_state) {
   $form['push'] = array(
     '#type' => 'fieldset',
     '#title' => t('Push notification settings'),
-    '#description' => t('The username and password settings must match your Push Notifications settings in the Recurly administration interface.') . '<br />' . t('Configure your default account to use @url as its Push Notification URL.', array('@url' => url('recurly/listener', array('absolute' => TRUE)))),
+    '#description' => t('If you have supplied an HTTP authentication username and password in your Push Notifications settings at Recurly, your web server must be configured to validate these credentials at your listener URL.'),
     '#collapsible' => TRUE,
   );
-  $form['push']['recurly_push_username'] = array(
+  $form['push']['recurly_listener_key'] = array(
     '#type' => 'textfield',
-    '#title' => t('HTTP auth username'),
-    '#default_value' => variable_get('recurly_push_username', ''),
-  );
-  $form['push']['recurly_push_password'] = array(
-    '#type' => 'textfield',
-    '#title' => t('HTTP auth password'),
-    '#default_value' => variable_get('recurly_push_password', ''),
+    '#title' => t('Listener URL key'),
+    '#description' => t('Customizing the listener URL gives you protection against fraudulent push notifications.') . '<br />' . t('Based on your current key, you should set @url as your Push Notification URL at Recurly.', array('@url' => url('recurly/listener/' . variable_get('recurly_listener_key', ''), array('absolute' => TRUE)))),
+    '#default_value' => variable_get('recurly_listener_key', ''),
+    '#required' => TRUE,
+    '#size' => 32,
+    '#field_prefix' => url('recurly/listener/', array('absolute' => TRUE)),
   );
   $form['push']['recurly_push_logging'] = array(
     '#type' => 'checkbox',
