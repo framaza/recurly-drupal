@@ -116,9 +116,11 @@ function recurly_help($path, $arg) {
 function recurly_user_view($account, $view_mode, $langcode) {
   global $user;
 
-  // If this is an authenticated account and the current user has access to view
-  // its Recurly account information...
-  if ($account->uid && recurly_account_access('view', $account)) {
+  // If account display on user profiles is enabled, this is an authenticated
+  // account, and the current user has access to view its account information...
+  if (recurly_integration_option_enabled('account', 'profile_display') &&
+    $account->uid &&
+    recurly_account_access('view', $account)) {
     // Initialize the Recurly client.
     recurly_client_initialize();
 
@@ -277,7 +279,8 @@ function _recurly_filter_recurly_subscription_plan_tokens_process($matches) {
  *   Boolean indicating whether or not the point of integration is enabled.
  */
 function recurly_integration_option_enabled($integration, $option) {
-  return in_array($option, variable_get('recurly_' . $integration . '_integration', array()));
+  $options = variable_get('recurly_' . $integration . '_integration', array());
+  return !empty($options[$option]);
 }
 
 /**
