@@ -382,8 +382,8 @@ function recurly_process_push_notification($key, $subdomain = NULL) {
  * @param $settings
  *   An array of Recurly account settings including the following keys or NULL
  *   to use the site-wide account settings.
- *   - username: the API username to use
- *   - password: the API password for the given username
+ *   - apiKey: the API key to use
+ *   - privateKey: the private Key to use for Recurly.js (optional)
  *   - subdomain: the subdomain configured for your Recurly account.
  *   - environment: the current environment of the given account, either
  *     'sandbox' or 'production'.
@@ -398,8 +398,8 @@ function recurly_client_initialize($settings = NULL) {
   // If no settings array was given, use the default account settings.
   if (empty($settings)) {
     $settings = array(
-      'username' => variable_get('recurly_api_username', ''),
-      'password' => variable_get('recurly_api_password', ''),
+      'apiKey' => variable_get('recurly_api_key', ''),
+      'privateKey' => variable_get('recurly_private_key', ''),
       'subdomain' => variable_get('recurly_subdomain', ''),
       'environment' => variable_get('recurly_environment', 'sandbox'),
     );
@@ -407,10 +407,14 @@ function recurly_client_initialize($settings = NULL) {
 
   // If we can find a path in the libraries directory to the Recurly PHP client
   // library...
-  if (($path = libraries_get_path('recurly')) && file_exists($path . '/library/recurly.php')) {
+  if (($path = libraries_get_path('recurly')) && file_exists($path . '/lib/recurly.php')) {
     // Include the library files and configure authentication.
-    require_once $path . '/library/recurly.php';
-    RecurlyClient::SetAuth($settings['username'], $settings['password'], $settings['subdomain'], $settings['environment']);
+    require_once $path . '/lib/recurly.php';
+    // Required for the API
+	Recurly_Client::$apiKey = $settings['apiKey'];
+
+	// Optional for Recurly.js:
+	Recurly_js::$privateKey = $settings['privateKey'];
   }
   else {
     watchdog('recurly', 'Could not find the Recurly PHP client library in sites/all/libraries/recurly.', array(), WATCHDOG_ERROR);
@@ -505,7 +509,7 @@ function recurly_account_load($conditions = array(), $local = FALSE) {
 
   // Attempt to load the full account from Recurly.
   try {
-    $recurly_account = RecurlyAccount::getAccount($data->account_code);
+    $recurly_account = Recurly_Account::get($data->account_code);
 
     // Return the orphaned data if no account was found at Recurly.
     if (empty($recurly_account)) {
@@ -555,7 +559,7 @@ function recurly_account_save($recurly_account, $uid, $data = array(), $export =
   // record that does not match a record at Recurly.
   if ($export) {
     // Check to see if the record already exists.
-    $remote_account = RecurlyAccount::getAccount($recurly_account->account_code);
+    $remote_account = Recurly_Account::get($recurly_account->account_code);
 
     // If it does, then update the account.
     if (!empty($remote_account)) {
@@ -622,7 +626,7 @@ function recurly_subscription_plans($reset_cache = FALSE) {
   // If we haven't specified a cache reset, attempt to retrieve plans from the
   // cache before getting them from Recurly.
   if (!$reset_cache) {
-    $plans = cache_get('recurly-subscription-plans:' . RecurlyClient::$subdomain);
+    $plans = cache_get('recurly-subscription-plans:' . Recurly_Client::$apiKey);
 
     // If plans were found, return them now.
     if (!empty($plans->data)) {
@@ -631,11 +635,11 @@ function recurly_subscription_plans($reset_cache = FALSE) {
   }
 
   // Retrieve the subscription plans from Recurly.
-  $plans = RecurlyPlan::getPlans();
+  $plans = Recurly_PlanList::get();
 
   // If data was actually returned, cache it for the current subdomain.
   if (!empty($plans)) {
-    cache_set('recurly-subscription-plans:' . RecurlyClient::$subdomain, $plans, 'cache', CACHE_TEMPORARY);
+    cache_set('recurly-subscription-plans:' . Recurly_Client::$apiKey, $plans, 'cache', CACHE_TEMPORARY);
   }
 
   return $plans;
@@ -647,13 +651,7 @@ function recurly_subscription_plans($reset_cache = FALSE) {
  */
 function recurly_url($path = '') {
   // Generate the subdomain to use for the current account.
-  $subdomain = RecurlyClient::$subdomain;
-
-  // Add the sandbox suffix to the subdomain if the account is currently in the
-  // snadbox environment.
-  if (RecurlyClient::$environment == 'sandbox') {
-    $subdomain .= '-test';
-  }
+  $subdomain = variable_get('recurly_subdomain', '');
 
   return url('https://' . $subdomain . '.recurly.com/' . $path);
 }

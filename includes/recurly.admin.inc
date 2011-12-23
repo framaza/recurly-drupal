@@ -28,15 +28,15 @@ function recurly_settings_form($form, &$form_state) {
     '#title' => t('Hosted Payment Pages are enabled for this account.'),
     '#default_value' => variable_get('recurly_hosted_payment_pages', FALSE),
   );
-  $form['account']['recurly_api_username'] = array(
+  $form['account']['recurly_api_key'] = array(
     '#type' => 'textfield',
-    '#title' => t('API username'),
-    '#default_value' => variable_get('recurly_api_username', ''),
+    '#title' => t('API key'),
+    '#default_value' => variable_get('recurly_api_key', ''),
   );
-  $form['account']['recurly_api_password'] = array(
+  $form['account']['recurly_private_key'] = array(
     '#type' => 'textfield',
-    '#title' => t('API password'),
-    '#default_value' => variable_get('recurly_api_password', ''),
+    '#title' => t('API private key'),
+    '#default_value' => variable_get('recurly_private_key', ''),
   );
   $form['account']['recurly_environment'] = array(
     '#type' => 'radios',
@@ -134,10 +134,11 @@ function recurly_subscription_plans_overview() {
 
     $rows[] = array(
       t('@name <small>(Plan code: @code)</small>', array('@name' => $plan->name, '@code' => $plan->plan_code)) . $description,
-      t('@unit_price per @interval_length @interval_unit', array('@unit_price' => number_format($plan->unit_amount_in_cents / 100, 2), '@interval_length' => $plan->plan_interval_length, '@interval_unit' => $plan->plan_interval_unit)),
-      t('@setup_fee', array('@setup_fee' => number_format($plan->setup_fee_in_cents / 100, 2))),
+      // TODO: support multiple currencies
+      t('@unit_price per @interval_length @interval_unit', array('@unit_price' => '$' . number_format($plan->unit_amount_in_cents['USD']->amount(), 2), '@interval_length' => $plan->plan_interval_length, '@interval_unit' => $plan->plan_interval_unit)),
+      t('@setup_fee', array('@setup_fee' => '$' . number_format($plan->setup_fee_in_cents['USD']->amount(), 2))),
       t('@trial_length @trial_unit', array('@trial_length' => $plan->trial_interval_length, '@trial_unit' => $plan->trial_interval_unit)),
-      format_date($plan->created_at),
+      $plan->created_at->format(DATE_RFC3339),
       theme('links', array('links' => $operations, 'attributes' => array('class' => array('links', 'inline')))),
     );
   }
