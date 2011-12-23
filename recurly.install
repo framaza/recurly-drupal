@@ -47,7 +47,7 @@ function recurly_schema() {
       'status' => array(
         'description' => 'Whether the account is closed or active.',
         'type' => 'varchar',
-        'size' => 255,
+        'length' => 255,
         'not null' => TRUE,
         'default' => '',
       ),
